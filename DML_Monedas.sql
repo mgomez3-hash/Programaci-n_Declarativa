@@ -2305,3 +2305,41 @@ INSERT INTO CambioMoneda (IdMoneda, Fecha, Cambio) VALUES  ( 7, '2018-1-5', 6.56
 INSERT INTO CambioMoneda (IdMoneda, Fecha, Cambio) VALUES  ( 7, '2018-1-3', 6.5555);
 INSERT INTO CambioMoneda (IdMoneda, Fecha, Cambio) VALUES  ( 7, '2018-1-2', 6.5448);
 INSERT INTO CambioMoneda (IdMoneda, Fecha, Cambio) VALUES  ( 7, '2018-1-1', 6.5073);
+
+/* Función para insertar o actualizar cualquier moneda y su tasa de cambio */
+CREATE OR REPLACE FUNCTION upsert_moneda_y_cambio(
+    p_sigla    TEXT,
+    p_moneda   TEXT,
+    p_simbolo  TEXT DEFAULT NULL,
+    p_emisor   TEXT DEFAULT NULL,
+    p_imagen   BYTEA DEFAULT NULL,
+    p_fecha    DATE,
+    p_cambio   NUMERIC
+) RETURNS VOID LANGUAGE plpgsql AS
+$$
+DECLARE
+    v_id INT;
+BEGIN
+    -- Verificar si la moneda existe (por SIGLA)
+    SELECT id INTO v_id FROM moneda WHERE sigla = p_sigla;
+
+    -- Si no existe, crearla
+    IF v_id IS NULL THEN
+        INSERT INTO moneda (moneda, sigla, simbolo, emisor, imagen)
+        VALUES (p_moneda, p_sigla, p_simbolo, p_emisor, p_imagen)
+        RETURNING id INTO v_id;
+    END IF;
+
+    -- Insertar o actualizar la tasa de cambio
+    BEGIN
+        INSERT INTO cambiomoneda (idmoneda, fecha, cambio)
+        VALUES (v_id, p_fecha, p_cambio);
+    EXCEPTION
+        WHEN unique_violation THEN
+            UPDATE cambiomoneda
+            SET cambio = p_cambio
+            WHERE idmoneda = v_id AND fecha = p_fecha;
+    END;
+
+END;
+$$;
